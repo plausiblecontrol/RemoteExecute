@@ -16,6 +16,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.Security;
+using System.Runtime.InteropServices;
 
 namespace Joexec {
   /// <summary>
@@ -46,7 +47,7 @@ namespace Joexec {
       finishedT.Content = "Finished";
       finishedT.Visibility = System.Windows.Visibility.Hidden;
       string user = userBox.Text;
-      string poop = passBox.Password;
+      SecureString notApassword = passBox.SecurePassword;
       string cmd = CommandBox.Text;
       string[] hosts = hostBox.Text.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
       buttonEn(false);
@@ -55,7 +56,7 @@ namespace Joexec {
 
       Task.Factory.StartNew(() => {
         foreach (string host in hosts) {
-          joEx(host, user, poop, cmd, cts.Token);
+          joEx(host, user, notApassword, cmd, cts.Token);
           if (cts.IsCancellationRequested)
             break;
         }        
@@ -99,21 +100,18 @@ namespace Joexec {
       return addresses.ToArray();
     }
 
-    
-    private void joEx(string remoteMachine, string uname, string poop, string cmd, CancellationToken ct) {
+    private void joEx(string remoteMachine, string uname, SecureString notApassword, string cmd, CancellationToken ct) {
       string reply = "";
       try {
         var connection = new ConnectionOptions();
-        connection.Username = uname;// userBox.Text;
-        connection.Password = poop;// passBox.Password;
+        connection.Username = uname;
+        connection.Password = Marshal.PtrToStringUni(Marshal.SecureStringToGlobalAllocUnicode(notApassword));
         var wmiScope = new ManagementScope(String.Format("\\\\{0}\\root\\cimv2", remoteMachine), connection);
         var wmiProcess = new ManagementClass(wmiScope, new ManagementPath("Win32_Process"), new ObjectGetOptions());          
         var processes = new[] { cmd };
         wmiProcess.InvokeMethod("Create", processes);
         reply = "Sent success: " + remoteMachine + System.Environment.NewLine;
-        //statusBox.AppendText("Command sent to "+ remoteMachine+System.Environment.NewLine);
       } catch (Exception ex) {
-        //statusBox.AppendText(remoteMachine + " error: " + ex.Message.ToString() + System.Environment.NewLine);
         string err = ex.Message.ToString();
         if (err.Substring(4, 1) == "R") {
           err = "Unreachable.";
@@ -127,8 +125,6 @@ namespace Joexec {
         return null;
       }), null);
       }
-      //Dispatcher.Invoke(new Action(pBarUpdate));
-      //return reply;
     }
 
     private void lclHostBtn_Click(object sender, RoutedEventArgs e) {
